@@ -1,41 +1,37 @@
 provider "aws" {
-    region = "us-east-1"
-  
+  region = "us-east-1"
 }
 
-# eks cluster create
+# ----------------------------
+# EKS Cluster IAM Role
+# ----------------------------
 resource "aws_iam_role" "cluster" {
-    name = "eks-cluster"
-    assume_role_policy = jsondecode({
-        Version ="2012-10-17"
-        Statement = [
-            {
-                Action = [
-                    "sts:AssumeRole",
-                    "sts:TagSession"
-                ]
-                Effect = "Allow"
-                Principal = {
-                    Service = "eks.amazonaws.com"
-                }
-            },
-        ]
-    })
+  name = "eks-cluster"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = ["sts:AssumeRole", "sts:TagSession"]
+      Effect = "Allow"
+      Principal = {
+        Service = "eks.amazonaws.com"
+      }
+    }]
+  })
 }
 
-# attach policy
-resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSClusterPolicy" {
-    policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-    role =  aws_iam_role.cluster.name
+resource "aws_iam_role_policy_attachment" "cluster_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.cluster.name
 }
 
-# default vpc
+# ----------------------------
+# VPC + Subnets
+# ----------------------------
 data "aws_vpc" "default" {
-    default = true
-  
+  default = true
 }
 
-# choosen subnet with particular az zone
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
@@ -48,30 +44,34 @@ data "aws_subnets" "default" {
   }
 }
 
-# configuration of cluster
+# ----------------------------
+# EKS Cluster
+# ----------------------------
 resource "aws_eks_cluster" "cluster" {
-    name = "cluster"
-    access_config {
-        authentication_mode = "API"
-      }
-      role_arn = aws_iam_role.cluster.arn
-      vpc_config {
-        subnet_ids = data.aws_subnets.default.ids
-      }
-      depends_on = [ 
-        aws_iam_role_policy_attachment.cluster_AmazonEKSClusterPolicy
-       ]
-    }
+  name     = "cluster"
+  role_arn = aws_iam_role.cluster.arn
 
+  access_config {
+    authentication_mode = "API"
+  }
 
-    # add node groups
+  vpc_config {
+    subnet_ids = data.aws_subnets.default.ids
+  }
 
-    # add policy for node group
+  depends_on = [
+    aws_iam_role_policy_attachment.cluster_policy
+  ]
+}
 
-    resource "aws_iam_role" "node-cluster" {
+# ----------------------------
+# Node Group IAM Role
+# ----------------------------
+resource "aws_iam_role" "node_cluster" {
   name = "node-cluster"
 
   assume_role_policy = jsonencode({
+    Version = "2012-10-17"
     Statement = [{
       Action = "sts:AssumeRole"
       Effect = "Allow"
@@ -79,34 +79,31 @@ resource "aws_eks_cluster" "cluster" {
         Service = "ec2.amazonaws.com"
       }
     }]
-    Version = "2012-10-17"
   })
 }
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEKSWorkerNodePolicy" {
+resource "aws_iam_role_policy_attachment" "worker_node" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role       = aws_iam_role.node-cluster.name
+  role       = aws_iam_role.node_cluster.name
 }
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEKS_CNI_Policy" {
+resource "aws_iam_role_policy_attachment" "cni_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       =  aws_iam_role.node-cluster.name
+  role       = aws_iam_role.node_cluster.name
 }
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryReadOnly" {
+resource "aws_iam_role_policy_attachment" "ecr_read" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       =  aws_iam_role.node-cluster.name
+  role       = aws_iam_role.node_cluster.name
 }
 
-
-
-
-
-   resource "aws_eks_node_group" "node-cluster" {
-
+# ----------------------------
+# Node Group
+# ----------------------------
+resource "aws_eks_node_group" "node_cluster" {
   cluster_name    = aws_eks_cluster.cluster.name
   node_group_name = "node-cluster"
-  node_role_arn   = aws_iam_role.node-cluster.arn
+  node_role_arn   = aws_iam_role.node_cluster.arn
 
   subnet_ids = data.aws_subnets.default.ids
 
@@ -123,8 +120,8 @@ resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryRea
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.example-AmazonEKSWorkerNodePolicy,
-    aws_iam_role_policy_attachment.example-AmazonEKS_CNI_Policy,
-    aws_iam_role_policy_attachment.example-AmazonEC2ContainerRegistryReadOnly,
+    aws_iam_role_policy_attachment.worker_node,
+    aws_iam_role_policy_attachment.cni_policy,
+    aws_iam_role_policy_attachment.ecr_read
   ]
 }
