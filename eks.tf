@@ -36,10 +36,15 @@ data "aws_vpc" "default" {
   default = true
 }
 
-data "aws_subnets" "default" {
+data "aws_subnets" "filtered" {
   filter {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
+  }
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-1a", "us-east-1b"]
   }
 }
 
@@ -55,7 +60,7 @@ resource "aws_eks_cluster" "cluster" {
   }
 
   vpc_config {
-    subnet_ids = data.aws_subnets.default.ids
+   subnet_ids = data.aws_subnets.filtered.ids
   }
 
   depends_on = [
@@ -114,7 +119,7 @@ resource "aws_eks_node_group" "node-ec2" {
   cluster_name    = aws_eks_cluster.cluster.name
   node_group_name = "worker-nodes"
   node_role_arn   = aws_iam_role.node.arn
-  subnet_ids      = data.aws_subnets.default.ids
+  subnet_ids = data.aws_subnets.filtered.ids
 
   scaling_config {
     desired_size = 2
