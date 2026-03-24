@@ -2,6 +2,13 @@ provider "aws" {
   region = "us-east-1"
 }
 
+backend "s3" {
+  bucket         = "terraformbucketfoundunique"
+  key            = "eks/terraform.tfstate"
+  region         = "us-east-1"
+  use_lockfile   = true
+}
+
 # -----------------------------
 # 1. Get AWS Account Info
 # -----------------------------
