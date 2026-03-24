@@ -8,12 +8,11 @@ provider "aws" {
 terraform {
   backend "s3" {
     bucket         = "terraformbucketfoundunique"
-    key            = "eks/terraform.tfstate"
+    key            = "terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "terraform-lock"
   }
 }
-
 # -----------------------------
 # 1. Get AWS Account Info
 # -----------------------------
